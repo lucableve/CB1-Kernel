@@ -19,6 +19,8 @@
 
 .config
 .config.old
+.config.o.cmd
+
 .tmp
 .vscode
 output
