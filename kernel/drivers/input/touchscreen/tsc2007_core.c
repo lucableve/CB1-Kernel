@@ -71,22 +71,26 @@ static void tsc2007_read_values(struct tsc2007 *tsc, struct ts_event *tc)
 u32 tsc2007_calculate_resistance(struct tsc2007 *tsc, struct ts_event *tc)
 {
     u32 rt = 0;
-    if (tc->x == MAX_12BIT)
+    if (tc->x == MAX_12BIT){
         tc->x = 0;
-
-    if (likely(tc->x && tc->z1)) {
-
-        if (likely(tsc->y_plate_ohms)) {
-            rt = (tsc->x_plate_ohms * tc->x / 4096) * ((4096 / tc->z1) - 1) - tsc->y_plate_ohms * (1 - tc->y / 4096);
-        }
-
-        if (likely(tc->y && tsc->x_plate_ohms && tsc->y_plate_ohms)) {
-            dev_info(&tsc->client->dev, "RT: (%4d) | X Plate: (%4d) | Y Plate: (%4d) | TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)",
-                     rt, tsc->x_plate_ohms, tsc->y_plate_ohms, tc->z1, tc->z2, tc->x, tc->y);
-        }
+        dev_info(&tsc->client->dev, "DEBUG TSC: Force TC->X to 0");
     }
 
-    return rt;
+    if (tc->y == MAX_12BIT){
+        tc->y = 0;
+        dev_info(&tsc->client->dev, "DEBUG TSC: Force TC->Y to 0");
+    }
+
+
+    if (likely(tc->x && tc->y && tc->z1)) {
+        rt = (tsc->x_plate_ohms * tc->x / 4096) * ((4096 / tc->z1) - 1) - tsc->y_plate_ohms * (1 - tc->y / 4096);
+        dev_info(&tsc->client->dev, "RT: (%4d) | X Plate: (%4d) | Y Plate: (%4d) | TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)", rt, tsc->x_plate_ohms, tsc->y_plate_ohms, tc->z1, tc->z2, tc->x, tc->y);
+        return rt;
+    }else{
+       dev_info(&tsc->client->dev, "DEBUG TSC: Missing TCX(%4d) OR TCY(%4d) OR TCZ1(%4d)",tc->x,tc->y,tc->z1);
+       return false;
+    }
+
 }
 
 bool tsc2007_is_pen_down(struct tsc2007 *ts)
@@ -181,6 +185,7 @@ static irqreturn_t tsc2007_soft_poll(int irq, void *handle)
 	struct input_dev *input = ts->input;
 	struct ts_event tc;
 	u32 rt;
+	bool skipSync = false
 
 	if(!ts->stopped) {
 
@@ -190,36 +195,39 @@ static irqreturn_t tsc2007_soft_poll(int irq, void *handle)
 
 		rt = tsc2007_calculate_resistance(ts, &tc);
 
-        /* range >= 0 && <= 4096 */
-		if (rt > 0 && rt <= ts->max_rt) {
-		        dev_info(&ts->client->dev, "[TS-EVENT] Real touch event trigger rt: (%4d)",rt);
-		        dev_info(&ts->client->dev, "[TS-EVENT] TC X: (%4d)\nTC Y: (%4d)",tc.x,tc.y);
+        if (likely(rt)) {
+            /* range >= 0 && <= 4096 */
+            if (rt > 0 && rt <= ts->max_rt) {
+                    rt = ts->max_rt - rt;
 
+                    input_report_key(input, BTN_TOUCH, 1);
+                    input_report_abs(input, ABS_X, tc.y);
+                    input_report_abs(input, ABS_Y, 4096 - tc.x);
+                    input_report_abs(input, ABS_PRESSURE, rt);
 
-				dev_dbg(&ts->client->dev,
-					"DOWN point(%4d,%4d), resistance (%4u)\n",
-					tc.x, tc.y, rt);
+                    input_sync(input);
+                    ts->touched = 1;
 
-				rt = ts->max_rt - rt;
+            } else {
+                skipSync= true;
+            }
+        }else{
+         	     dev_info(&ts->client->dev, "DEBUG TSC: RT value is FALSE");
+                skipSync= true;
+        }
 
-				input_report_key(input, BTN_TOUCH, 1);
-				input_report_abs(input, ABS_X, tc.y);
-				input_report_abs(input, ABS_Y, 4096 - tc.x);
-				input_report_abs(input, ABS_PRESSURE, rt);
-
-				input_sync(input);
-				ts->touched = 1;
-
-		} else {
-
-				dev_dbg(&ts->client->dev, "UP\n");
-
-				input_report_key(input, BTN_TOUCH, 0);
-				input_report_abs(input, ABS_PRESSURE, 0);
-				input_sync(input);
-				ts->touched = 0;
-		}
+	}else{
+	     dev_info(&ts->client->dev, "DEBUG TSC: TouchScreen Stopped");
 	}
+
+    if(skipSync){
+        input_report_key(input, BTN_TOUCH, 0);
+        input_report_abs(input, ABS_PRESSURE, 0);
+        input_report_abs(input, ABS_X, 0);
+        input_report_abs(input, ABS_Y, 0);
+        input_sync(input);
+        ts->touched = 0;
+    }
 
 	return IRQ_HANDLED;
 }
