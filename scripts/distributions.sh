@@ -188,6 +188,15 @@ install_common()
 	    chroot "${SDCARD}" /bin/bash -c "usermod -aG ${additionalgroup} ${USER_NAME} 2>/dev/null"
 	done
 
+  mkdir -p "${SDCARD}/home/${USER_NAME}/Monitor/"
+  # Copia il tuo script nella cartella Monitor
+  cp "${SRC}/scripts/watcher.sh" "${SDCARD}/home/${USER_NAME}/Monitor/"
+  chroot "${SDCARD}" /bin/bash -c "chmod +x  ${SDCARD}/home/${USER_NAME}/Monitor/watcher.sh"
+
+
+	# add kiauh
+	chroot "${SDCARD}" /bin/bash -c "git clone https://github.com/th33xitus/kiauh.git ${SDCARD}/home/${USER_NAME}/"
+
 	# fix for gksu in Xenial
 	touch ${SDCARD}/home/${USER_NAME}/.Xauthority
 	chroot "${SDCARD}" /bin/bash -c "chown ${USER_NAME}:${USER_NAME} /home/${USER_NAME}/.Xauthority"
