@@ -191,6 +191,7 @@ install_common()
   # Copia il tuo script nella cartella Monitor
   cp -r "${SRC}/external/tools" "${SDCARD}/home/${USER_NAME}/"
   chmod +x  "${SDCARD}/home/${USER_NAME}/tools/monitor/watcher.sh"
+  chmod +x  "${SDCARD}/home/${USER_NAME}/tools/KlipperScreen/scripts/KlipperScreen-install.sh"
 
 
 
