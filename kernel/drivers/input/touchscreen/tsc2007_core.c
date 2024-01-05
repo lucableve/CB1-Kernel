@@ -185,7 +185,7 @@ static irqreturn_t tsc2007_soft_poll(int irq, void *handle)
 	struct input_dev *input = ts->input;
 	struct ts_event tc;
 	u32 rt;
-	bool skipSync = false
+	bool skipSync = false;
 
 	if(!ts->stopped) {
 
