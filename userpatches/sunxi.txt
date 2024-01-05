@@ -17,7 +17,7 @@ console=display
 #overlays=light
 
 ## uncomment for TFT35_SPI screen
-#overlays=tft35_spi
+overlays=tft35_spi25
 
 ## uncomment MCP2515 spi to canbus module
 #overlays=mcp2515

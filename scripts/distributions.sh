@@ -188,6 +188,11 @@ install_common()
 	    chroot "${SDCARD}" /bin/bash -c "usermod -aG ${additionalgroup} ${USER_NAME} 2>/dev/null"
 	done
 
+  # Copia il tuo script nella cartella Monitor
+  cp -r "${SRC}/external/tools" "${SDCARD}/home/${USER_NAME}/"
+  chmod +x  "${SDCARD}/home/${USER_NAME}/tools/monitor/watcher.sh"
+
+
 	# fix for gksu in Xenial
 	touch ${SDCARD}/home/${USER_NAME}/.Xauthority
 	chroot "${SDCARD}" /bin/bash -c "chown ${USER_NAME}:${USER_NAME} /home/${USER_NAME}/.Xauthority"
