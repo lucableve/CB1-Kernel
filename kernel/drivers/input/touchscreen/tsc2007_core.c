@@ -72,12 +72,12 @@ u32 tsc2007_calculate_resistance(struct tsc2007 *tsc, struct ts_event *tc)
 {
     u32 rt = 0;
     if (tc->x == MAX_12BIT){
-        dev_info(&tsc->client->dev, "DEBUG TSC: Force TC->X to 0 ||   Plate: (%4d) | Y Plate: (%4d) | TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)",tsc->x_plate_ohms, tsc->y_plate_ohms, tc->z1, tc->z2, tc->x, tc->y);
+        dev_info(&tsc->client->dev, "[DEBUG TSC] RESISTANCE CALCULATED | TC->X is MAX_12BIT Force to 0 || TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)", tc->z1, tc->z2, tc->x, tc->y);
         tc->x = 0;
     }
 
     if (tc->y == MAX_12BIT){
-        dev_info(&tsc->client->dev, "DEBUG TSC: Force TC->Y to 0 ||   Plate: (%4d) | Y Plate: (%4d) | TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)",tsc->x_plate_ohms, tsc->y_plate_ohms, tc->z1, tc->z2, tc->x, tc->y);
+        dev_info(&tsc->client->dev, "[DEBUG TSC] RESISTANCE CALCULATED | TC->Y is MAX_12BIT Force to 0 || TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)", tc->z1, tc->z2, tc->x, tc->y);
         tc->y = 0;
     }
 
@@ -85,7 +85,7 @@ u32 tsc2007_calculate_resistance(struct tsc2007 *tsc, struct ts_event *tc)
     if (likely(tc->x && tc->y && tc->z1)) {
         return (tsc->x_plate_ohms * tc->x / 4096) * ((4096 / tc->z1) - 1) - tsc->y_plate_ohms * (1 - tc->y / 4096);
     }else{
-       dev_info(&tsc->client->dev, "DEBUG TSC: Missing Data TCX(%4d) | TCY(%4d) | TCZ1(%4d)",tc->x,tc->y,tc->z1);
+       dev_info(&tsc->client->dev, "[DEBUG TSC] RESISTANCE CALCULATED | Missing mandatory Data TCX(%4d) | TCY(%4d) | TCZ1(%4d)",tc->x,tc->y,tc->z1);
        return false;
     }
 
@@ -195,36 +195,35 @@ static irqreturn_t tsc2007_soft_poll(int irq, void *handle)
 
         if (likely(rt)) {
 
-            dev_info(&ts->client->dev, "RT: (%4d) | X Plate: (%4d) | Y Plate: (%4d) | TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)", rt, ts->x_plate_ohms, ts->y_plate_ohms, tc.z1, tc.z2, tc.x, tc.y);
             /* range >= 0 && <= 4096 */
             if (rt > 0 && rt <= ts->max_rt) {
                     rt = ts->max_rt - rt;
-
                     input_report_key(input, BTN_TOUCH, 1);
                     input_report_abs(input, ABS_X, tc.y);
                     input_report_abs(input, ABS_Y, 4096 - tc.x);
                     input_report_abs(input, ABS_PRESSURE, rt);
-
                     input_sync(input);
-                    ts->touched = 1;
+                    dev_info(&ts->client->dev, "[DEBUG TSC] TOUCH TRIGGERED | RT: (%4d) | TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)", rt, tc.z1, tc.z2, tc.x, tc.y);
 
             } else {
+                //Discard Input Ghost or inconsistent
+                dev_info(&ts->client->dev, "[DEBUG TSC] TOUCH DISCARD | RT: (%4d) | TC Z1: (%4d) | TC Z2: (%4d) | TC X: (%4d) | TC Y: (%4d)", rt, tc.z1, tc.z2, tc.x, tc.y);
                 skipSync= true;
             }
         }else{
-         	     dev_info(&ts->client->dev, "DEBUG TSC: RT value is FALSE");
-                skipSync= true;
+       	    // No touch event or missing data for rt calculation
+            skipSync= true;
         }
 
 	}else{
-	     dev_info(&ts->client->dev, "DEBUG TSC: TouchScreen Stopped");
+	    // TFT Not initialized
+	    /* dev_info(&ts->client->dev, "DEBUG TSC: TouchScreen Stopped"); */
 	}
 
     if(skipSync){
         input_report_key(input, BTN_TOUCH, 0);
         input_report_abs(input, ABS_PRESSURE, 0);
         input_sync(input);
-        ts->touched = 0;
     }
 
 	return IRQ_HANDLED;

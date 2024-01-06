@@ -1,6 +1,11 @@
 #!/bin/bash
 #echo $$ > watcher.pid
 
+if [ "$1" == "--flush" ]; then
+  # Remove the ./data folder if the --flush option is present
+  rm -rf ./data
+fi
+
 mkdir -p ./data
 
 # Function to get the current date and time in the format "day/month/year hour:minutes:seconds"
@@ -44,7 +49,7 @@ trap cleanup EXIT
 
 # Start monitoring
 #stdbuf -oL dmesg -w | grep -A 8 "tsc2007" | grep "RT:" | stdbuf -oL awk -F"[()]" '{print $2; fflush();}' > "data.debug" &
-stdbuf -oL dmesg -w | grep -o 'RT: .*' > "./data/data.debug" &
+stdbuf -oL dmesg -w | grep -o '\[DEBUG TSC\] TOUCH[^\n]*' > "./data/data.debug" &
 
 # Store the process ID
 pid=$!
@@ -61,7 +66,6 @@ print_row_global() {
 
 counter=0
 events=0
-discards=0
 acceptedTrigger=0
 ghostInputs=0
 
@@ -71,35 +75,17 @@ while true; do
   lastTouchLine=""
 
   while read -r line; do
+
     rt=$(echo "$line" | grep -oP 'RT: \(\K\d+(?=\))')
 
-    if [ -n "$rt" ]; then
-      if [ "$rt" -ge 0 ] && [ "$rt" -le 4096 ]; then
-        events=$((events + 1))
-        counter=$((counter + 1))
-        lastTouchTrigger="$rt"
-        lastTouchLine="$line"
-      elif [ "$rt" -gt 4096 ]; then
-        discards=$((discards + 1))
-      elif [ "$rt" -lt 0 ]; then
-        discards=$((discards + 1))
-      fi
-
-      if ([ "$rt" -lt 0 ] || [ "$rt" -gt 4096 ]) && [ "$lastTouchTrigger" -ne 99999999999 ]; then
-        if [ $events -eq 1 ]; then
-          # The condition is true, you can perform desired actions
-          ghostInputs=$((ghostInputs + 1))
-          echo "$(TZ='Europe/Rome' date '+%d/%m/%Y %H:%M:%S') | $lastTouchLine" >> ./data/ghostInputs.debug
-        else
-          acceptedTrigger=$((acceptedTrigger + 1))
-          echo "$(TZ='Europe/Rome' date '+%d/%m/%Y %H:%M:%S') | $lastTouchLine" >> ./data/acceptedTrigger.debug
-        fi
-
-        lastTouchTrigger=99999999999
-        lastTouchLine=""
-        events=0
-      fi
+    if [[ $line =~ "TOUCH TRIGGERED" ]]; then
+              events=$((events + 1))
+              counter=$((counter + 1))
+              lastTouchTrigger="$rt"
+              lastTouchLine="$line"
+              echo "$(TZ='Europe/Rome' date '+%d/%m/%Y %H:%M:%S') | $lastTouchLine" >> ./data/acceptedTrigger.debug
     fi
+
   done < "./data/data.debug"
 
   # Get the date and time of the last update
@@ -111,18 +97,10 @@ while true; do
   # Print the date and time of the last update
   echo "Last update datetime: $update_datetime"
 
-  # Print a row of the table
-  echo "+--------------------------------------+-------------------------+-------------------------+"
-  echo "|               Discards               |     Accepted Trigger    |       Ghost Inputs      |"
-  echo "+--------------------------------------+-------------------------+-------------------------+"
-  print_row_counters "$discards" "$acceptedTrigger" "$ghostInputs"
-  echo "+--------------------------------------+-------------------------+-------------------------+"
-  printf "\n"
-
   if [ -s ./data/acceptedTrigger.debug ]; then
     # The condition is true, you can perform desired actions
     echo "+-------------------------------------------------------------+"
-    echo "|                    ACCEPTED TRIGGER DATA                    |"
+    echo "|                     TRIGGER DATA                    |"
     data_table ./data/acceptedTrigger.debug
   else
     # The condition is false, you can perform desired actions
@@ -130,17 +108,6 @@ while true; do
   fi
    printf "\n"
 
-  if [ -s ./data/ghostInputs.debug ]; then
-    # The condition is true, you can perform desired actions
-    echo "+-------------------------------------------------------------+"
-    echo "|                      GHOST INPUT DATA                       |"
-    data_table ./data/ghostInputs.debug
-  else
-    # The condition is false, you can perform desired actions
-    echo "NO GHOST INPUT"
-  fi
-
-  # Wait for a short period before updating the table
   > ./data/data.debug
   sleep 1
 done
